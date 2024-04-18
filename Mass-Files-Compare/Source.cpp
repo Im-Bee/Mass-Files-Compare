@@ -150,8 +150,8 @@ vector<string> CompareDirectoriesThreaded(const string& dirA, const string& dirB
 		tmpFullPathB = string();
 	for (auto& file : filesystem::directory_iterator(dirA))
 	{
-		tmpFullPathA = dirA + '\\' + file.path().filename().string();
-		tmpFullPathB = dirB + '\\' + file.path().filename().string();
+		tmpFullPathA = dirA + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string();
+		tmpFullPathB = dirB + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string();
 
 		threads.push_back(thread(CompareFilesThreaded, tmpFullPathA, tmpFullPathB, ref(reservedStrings[i++])));
 	}
@@ -176,8 +176,8 @@ vector<string> CompareDirectories(const string& dirA, const string& dirB)
 		tmpFullPathB = string();
 	for (auto& file : filesystem::directory_iterator(dirA))
 	{
-		tmpFullPathA = dirA + '\\' + file.path().filename().string();
-		tmpFullPathB = dirB + '\\' + file.path().filename().string();
+		tmpFullPathA = dirA + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string();
+		tmpFullPathB = dirB + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string();
 
 		try
 		{
