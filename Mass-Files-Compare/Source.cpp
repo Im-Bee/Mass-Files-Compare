@@ -39,7 +39,7 @@ BOOL CompareBuffers(
 * @param fileB - Path to file B
 * @return True if the file was identical
 */
-BOOL CompareFiles(LPCSTR fileA, LPCSTR fileB)
+bool CompareFiles(const string& fileA, const string& fileB)
 {
 	bool result = true;
 	const UINT64 fileSizeA = filesystem::file_size(fileA);
@@ -59,14 +59,14 @@ BOOL CompareFiles(LPCSTR fileA, LPCSTR fileB)
 	char* pCacheBBack = nullptr;
 
 	if (!ifsA.is_open())
-		throw invalid_argument("Path to file A was invalid.");
+		throw invalid_argument("Couldn't open the file");
 	if (!ifsB.is_open())
-		throw invalid_argument("Path to file B was invalid.");
+		throw invalid_argument("Couldn't open the file");
 
 	pCacheAFront = (char*)HeapAlloc(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, uCachesSize);
-	pCacheABack = (char*)HeapAlloc(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, uCachesSize);
+	pCacheABack  = (char*)HeapAlloc(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, uCachesSize);
 	pCacheBFront = (char*)HeapAlloc(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, uCachesSize);
-	pCacheBBack = (char*)HeapAlloc(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, uCachesSize);
+	pCacheBBack  = (char*)HeapAlloc(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY, uCachesSize);
 
 	ifsA.read(pCacheABack, uCachesSize);
 	ifsB.read(pCacheBBack, uCachesSize);
@@ -76,8 +76,8 @@ BOOL CompareFiles(LPCSTR fileA, LPCSTR fileB)
 		!ifsB.eof())
 	{
 		auto aCmp = async(launch::async, CompareBuffers, pCacheABack, pCacheBBack, uCachesSize);
-		auto aReadA = async(launch::async, &istream::read, &ifsA, pCacheAFront, uCachesSize);
-		auto aReadB = async(launch::async, &istream::read, &ifsB, pCacheBFront, uCachesSize);
+		auto aReadA = async(launch::async, &ifstream::read, &ifsA, pCacheAFront, uCachesSize);
+		auto aReadB = async(launch::async, &ifstream::read, &ifsB, pCacheBFront, uCachesSize);
 
 		if (!aCmp.get())
 		{
@@ -101,13 +101,13 @@ BOOL CompareFiles(LPCSTR fileA, LPCSTR fileB)
 	if (!CompareBuffers(pCacheABack, pCacheBBack, uCachesSize))
 		result = false;
 
+	ifsA.close();
+	ifsB.close();
+
 	HeapFree(GetProcessHeap(), 0, pCacheAFront);
 	HeapFree(GetProcessHeap(), 0, pCacheABack);
 	HeapFree(GetProcessHeap(), 0, pCacheBFront);
 	HeapFree(GetProcessHeap(), 0, pCacheBBack);
-
-	ifsA.close();
-	ifsB.close();
 
 	return result;
 }
@@ -116,7 +116,7 @@ void CompareFilesThreaded(string fileA, string fileB, string& out)
 {
 	try
 	{
-		if (!CompareFiles(fileA.c_str(), fileB.c_str()))
+		if (!CompareFiles(fileA, fileB))
 			out = fileA;
 
 		return;
@@ -146,14 +146,16 @@ vector<string> CompareDirectoriesThreaded(const string& dirA, const string& dirB
 	}
 
 	UINT64 i = 0;
-	string tmpFullPathA = string(),
-		tmpFullPathB = string();
 	for (auto& file : filesystem::directory_iterator(dirA))
 	{
-		tmpFullPathA = dirA + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string();
-		tmpFullPathB = dirB + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string();
+		if (file.is_directory())
+			continue;
 
-		threads.push_back(thread(CompareFilesThreaded, tmpFullPathA, tmpFullPathB, ref(reservedStrings[i++])));
+		threads.push_back(thread(
+			CompareFilesThreaded, 
+			string(dirA + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string()),
+			string(dirB + (dirA.back() == '\\' ? "" : "\\") + file.path().filename().string()),
+			ref(reservedStrings[i++])));
 	}
 
 	for (auto& t : threads)
@@ -181,7 +183,7 @@ vector<string> CompareDirectories(const string& dirA, const string& dirB)
 
 		try
 		{
-			if (!CompareFiles(tmpFullPathA.c_str(), tmpFullPathB.c_str()))
+			if (!CompareFiles(tmpFullPathA, tmpFullPathB))
 				result.push_back(tmpFullPathA);
 		}
 		catch (exception e)
